@@ -553,4 +553,107 @@ disp(summary_table);
 writetable(summary_table, 'summary_statistics.csv', 'WriteRowNames', true);
 
 
+%******************************************************************88
+
+% Load the data
+BUOY_44009 = readtable('buoy 44009 Nov all 2022.csv', VariableNamingRule='preserve');
+WAVEGLIDER = readtable('WG Lewes.csv', VariableNamingRule='preserve');
+WRF_Calm1 = readtable('extracted_data_CALM_CASE_1(3x3 grid).csv', VariableNamingRule='preserve');
+WRF_Calm2 = readtable('extracted_data_CALM_CASE_2(3x3 grid).csv', VariableNamingRule='preserve');
+WRF_Storm1 = readtable('extracted_data_STORM_CASE_1(3x3 grid).csv', VariableNamingRule='preserve');
+WRF_Storm2 = readtable('extracted_data_STORM_CASE_2 new (3x3 grid).csv', VariableNamingRule='preserve');
+
+% Define range for each case
+rangeCalm1 = 6:30;
+rangeCalm2 = 206:230;
+rangeStorm1 = 122:146;
+rangeStorm2 = 254:278;
+
+% Define variables for WaveGlider data
+wgwspd = tenmins_to_hourly(WAVEGLIDER{:,7});
+WG_Temp = tenmins_to_hourly(WAVEGLIDER{:,5});
+wgpres = tenmins_to_hourly(WAVEGLIDER{:,6});
+wgwdir = tenmins_to_hourly(WAVEGLIDER{:,9});
+
+% Define variables for Buoy data
+Buoywspd = tenmins_to_hourly(BUOY_44009{:,7});
+BuoyTemp = tenmins_to_hourly(BUOY_44009{:,14});
+Buoypres = tenmins_to_hourly(BUOY_44009{:,13});
+Buoydir = tenmins_to_hourly(BUOY_44009{:,6});
+
+% Function to compute RMSE, MAE, BIAS (RMSE - MAE), MBE, and NSE
+computeMetrics = @(obs, model) ...
+    [sqrt(mean((obs - model).^2)), ... % RMSE
+    mean(abs(obs - model)), ... % MAE
+    sqrt(mean((obs - model).^2)) - mean(abs(obs - model)), ... % BIAS
+    mean(model - obs), ... % MBE (model - observation)
+    1 - sum((obs - model).^2) / sum((obs - mean(obs)).^2)]; % NSE
+
+% Define cases and variables
+cases = {'Calm1', 'Calm2', 'Storm1', 'Storm2'};
+variables = {'WindSpeed', 'Temp', 'Press', 'WindDir'};
+
+% Initialize metrics table
+rowNames = [];
+for i = 1:length(cases)
+    for j = 1:length(variables)
+        rowNames{end+1} = strcat(cases{i}, '_', variables{j}, '_WG');
+        rowNames{end+1} = strcat(cases{i}, '_', variables{j}, '_Buoy');
+    end
+end
+
+% Initialize table with empty values
+metricsTable = table('Size', [length(rowNames), 5], ...
+    'VariableTypes', repmat("double", 1, 5), ...
+    'VariableNames', {'RMSE', 'MAE', 'BIAS', 'MBE', 'NSE'}, ...
+    'RowNames', rowNames);
+
+for i = 1:length(cases)
+    caseName = cases{i};
+    switch caseName
+        case 'Calm1'
+            range = rangeCalm1;
+            modelData = WRF_Calm1;
+        case 'Calm2'
+            range = rangeCalm2;
+            modelData = WRF_Calm2;
+        case 'Storm1'
+            range = rangeStorm1;
+            modelData = WRF_Storm1;
+        case 'Storm2'
+            range = rangeStorm2;
+            modelData = WRF_Storm2;
+    end
+
+    % Extract observation and model data for the given case
+    obsDataWG = {wgwspd(range,:), WG_Temp(range,:), wgpres(range,:), wgwdir(range,:)};
+    modelDataWG = {modelData{:,6}, modelData{:,9}, modelData{:,8}, modelData{:,7}};
+    obsDataBuoy = {Buoywspd(range,:), BuoyTemp(range,:), Buoypres(range,:), Buoydir(range,:)};
+    modelDataBuoy = {modelData{:,2}, modelData{:,5}, modelData{:,4}, modelData{:,3}};
+
+    % Filter pressure data based on the difference criterion (for WG observation only)
+    filterIdx = abs(obsDataWG{3} - obsDataBuoy{3}) <= 1.5; % Pressure difference
+    obsDataWG{3} = obsDataWG{3}(filterIdx);
+    modelDataWG{3} = modelDataWG{3}(filterIdx);
+    % Do not filter Buoy data, use all data
+    obsDataBuoy{3} = Buoypres(range,:);
+    modelDataBuoy{3} = modelData{:,4};
+
+    % Compute metrics for each variable (WG)
+    for j = 1:length(variables)
+        metricsWG = computeMetrics(obsDataWG{j}, modelDataWG{j});
+        metricsTable{strcat(caseName, '_', variables{j}, '_WG'), :} = round(metricsWG, 2);
+    end
+
+    % Compute metrics for each variable (Buoy)
+    for j = 1:length(variables)
+        metricsBuoy = computeMetrics(obsDataBuoy{j}, modelDataBuoy{j});
+        metricsTable{strcat(caseName, '_', variables{j}, '_Buoy'), :} = round(metricsBuoy, 2);
+    end
+end
+
+% Export the table to CSV
+writetable(metricsTable, 'Model_Obs_metrics.csv', 'WriteRowNames', true);
+disp(metricsTable);
+
 
