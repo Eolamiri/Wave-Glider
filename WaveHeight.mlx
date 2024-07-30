@@ -1,0 +1,181 @@
+WGWaves = readtable('Elite_WG_waves_20221116.csv', VariableNamingRule='preserve');
+BUOY_44009 = readtable('buoy 44009 Nov all 2022.csv', VariableNamingRule='preserve');
+
+WavesHeight = WGWaves{:,5};
+BuoywHeight = BUOY_44009{:,9};
+
+BuoywHeight(BuoywHeight == 9999 | BuoywHeight == 999 | BuoywHeight == 99) = NaN;
+BuoywHeight = BuoywHeight(74:3:length(BuoywHeight));
+
+Dateti = WGWaves{:,1};
+% Datetim = (Datetimm(range, :));
+range = 1:361;
+%  race track is 1:361; SK is 361:679
+figure
+plot(Dateti(range,:),BuoywHeight(range,:),'.', LineWidth=2.0, Color='red');
+hold on
+plot(Dateti(range,:),WavesHeight(range,:),'--o', Color="k");
+hold off
+
+grid on
+yline(1,'--',{'Above 1 meter'},Linewidth=1.5, Color= 'red');
+title('Wave Height (Racetrack Period)')
+xlabel('DateTime (UTC)');
+% ylabel('Temperature (\circC)');
+% ylabel('Wind Speed (m/s)');
+ylabel('Wave Height (m)');
+legend('Buoy 44009','Waveglider',location='best')
+
+% rangeV = 361:679;
+% mmV=find(WavesHeight(range,:) < 1);
+
+%************************************************************************************************
+% BOX AND WHISKER PLOT
+WavesHeight1 = WavesHeight(range, :);
+BuoywHeight1 = BuoywHeight(range, :);
+% WavesHeight1 = filloutliers(WavesHeight, NaN, 'mean');
+% BuoywHeight1 = filloutliers(BuoywHeight, NaN, 'mean');
+
+
+% Calculate the mean of each array, ignoring NaN values
+mean_WavesHeight = mean(WavesHeight1);
+mean_BuoywHeight = mean(BuoywHeight1);
+
+% Combine the means into a single matrix
+meanWeight1 = [mean_WavesHeight; mean_BuoywHeight];
+% meanWeight1 = (mean([wgsm_h(range, :), bsm_h(range, :), DsmR_h(range, :),DsmI_h(range, :),Csm_h(range, :),Lsm_h(range, :)]));
+figure
+boxchart([WavesHeight1, BuoywHeight1],'Notch', 'on')
+hold on
+plot(meanWeight1,'-o')
+hold off
+ylabel('Wave Height (m)');
+xlabel('Station');
+title('Wave Height (Station Keeping Period)')
+xticklabels({'Wave Glider','Buoy 44009'})
+legend(["Data","Mean"])
+grid on
+
+
+%************************************************************************************************
+% STATISTICAL SUMMARY
+Variable = "Wave Height ";
+Period = "(Station Keeping)";
+unit = " (m) ";
+
+Datetimm = Dateti(range,:);
+% SUMMARY
+Buoy__44009 = BuoywHeight(range,:);
+Wave__Glider = WavesHeight(range,:);
+% Combine data into a table
+data = table(Datetimm, Buoy__44009, Wave__Glider);
+
+% List of stations
+stations = {'Buoy__44009', 'Wave__Glider'};
+
+% Initialize variables to store statistics
+min_values = NaN(1, length(stations));
+max_values = NaN(1, length(stations));
+mean_values = NaN(1, length(stations));
+std_dev_values = NaN(1, length(stations));
+r_squared_values = NaN(1, length(stations));
+time_of_min = NaT(1, length(stations));
+time_of_max = NaT(1, length(stations));
+
+% Calculate statistics for each station
+for i = 1:length(stations)
+    % Extract data for the station
+    station_data = data.(stations{i});
+    
+    % Calculate statistics
+    min_values(i) = min(station_data);
+    max_values(i) = max(station_data);
+    mean_values(i) = nanmean(station_data);
+    std_dev_values(i) = nanstd(station_data);
+    
+    % Example: Calculate R-squared (you should replace with your actual computation)
+    % Example here computes a dummy R-squared for illustration
+    X = (1:length(station_data))';
+    y = station_data;
+    X = [ones(length(X), 1) X]; % Add a constant term for the intercept
+    b = X \ y; % Linear regression coefficients
+    y_fit = X * b; % Fitted values
+    SS_tot = sum((y - mean(y)).^2); % Total sum of squares
+    SS_res = sum((y - y_fit).^2); % Residual sum of squares
+    r_squared_values(i) = 1 - (SS_res / SS_tot); % R-squared value (dummy example)
+    
+    % Example: Calculate time of minimum and maximum
+    [~, idx_min] = min(station_data);
+    [~, idx_max] = max(station_data);
+    time_of_min(i) = Datetimm(idx_min);
+    time_of_max(i) = Datetimm(idx_max);
+end
+
+% Create statistics table
+statistics_table = table(min_values', max_values', mean_values', std_dev_values', time_of_min', time_of_max', ...
+    'VariableNames', {'Minimum', 'Maximum', 'Mean', 'Standard_Deviation', 'Time_of_Minimum', 'Time_of_Maximum'}, ...
+    'RowNames', stations);
+
+% Display statistics table
+disp(append(Variable, ' statistics for each station ', Period));
+disp(statistics_table);
+
+% Save statistics table as CSV file
+writetable(statistics_table, (append(Variable,'statistics_table',Period,'.csv')), 'WriteRowNames', true);
+
+
+%************************************************************************************************
+% R Squared
+
+Datetimm = Dateti(range,:);
+% SUMMARY
+Buoy__44009 = BuoywHeight(range,:);
+Wave__Glider = WavesHeight(range,:);
+% Combine data into a table
+data = table(Datetimm, Buoy__44009, Wave__Glider);
+
+% List of stations
+stations = {'Buoy__44009', 'Wave__Glider'};
+numStations = length(stations);
+R_squared_matrix = NaN(numStations, numStations);
+
+% Calculate R-squared for each pair of stations
+for i = 1:numStations
+    for j = 1:numStations
+        if i ~= j
+            X = data.(stations{i});
+            y = data.(stations{j});
+            X = [ones(length(X), 1) X]; % Add a constant term for the intercept
+            b = X \ y; % Linear regression coefficients
+            y_fit = X * b; % Fitted values
+            SS_tot = sum((y - mean(y)).^2); % Total sum of squares
+            SS_res = sum((y - y_fit).^2); % Residual sum of squares
+            R_squared = 1 - (SS_res / SS_tot); % R-squared value
+            R_squared_matrix(i, j) = R_squared;
+        end
+    end
+end
+
+% Display R-squared matrix
+disp(append(Variable,' R-squared values between stations ',Period));
+disp(array2table(R_squared_matrix, 'VariableNames', stations, 'RowNames', stations));
+
+
+% Visualize the standard deviation matrix using a heatmap
+h = heatmap(stations, stations, R_squared_matrix, 'Colormap', parula, 'ColorbarVisible', 'on');
+h.Title = (append(Variable,' R-squared values between stations ', Period'));
+h.ColorLimits = [0 2]; % Adjust limits based on expected range of std deviation differences
+h.ColorbarVisible = 'on';
+h.GridVisible = 'off';
+
+% Set color intervals of 0.2
+caxis([0 1]); % Adjust limits based on expected range of std deviation differences
+colormap(parula(5)); % 0 to 2 with intervals of 0.2 means 10 intervals
+
+
+% Save the heatmap plot as a PNG file
+saveas(gcf, append(Variable,' ', ' R-squared values',Period,'.png'));
+
+% Save the standard deviation matrix as a CSV file
+std_dev_table = array2table(R_squared_matrix, 'VariableNames', stations, 'RowNames', stations);
+writetable(std_dev_table, append(Variable,' ', ' R-squared values ', Period,'.csv'), 'WriteRowNames', true);
