@@ -1,0 +1,556 @@
+BUOY_44009 = readtable('buoy 44009 Nov all 2022.csv', VariableNamingRule='preserve');
+WAVEGLIDER = readtable('WG Lewes.csv', VariableNamingRule='preserve');
+WRF = readtable('extracted_data_CALM_CASE_2.csv', VariableNamingRule='preserve');
+
+
+%DECARING THE VARIABLES COLUMNS FOR EACH STATION
+%WaveGlider data
+wgwspd = WAVEGLIDER{:,7}; WG_Temp = WAVEGLIDER{:,5}; wgpres = WAVEGLIDER{:,6}; 
+wgwdir = WAVEGLIDER{:,9}; wgwgust = WAVEGLIDER{:,13};
+
+%Buoy Data
+Buoywspd = BUOY_44009{:,7}; BuoyTemp = BUOY_44009{:,14}; 
+Buoypres = BUOY_44009{:,13}; Buoydir = BUOY_44009{:,6}; 
+Buoygust = BUOY_44009{:,8};
+
+
+%DECARING THE VARIABLES COLUMNS FOR EACH STATION
+%WRF MODEL(Hourly)
+WRF_WG_wspd = WRF{:,6}; WRF_WG_Temp = WRF{:,9}; WRF_WG_Pressure = WRF{:,8}; 
+WRF_Buoy_wspd = WRF{:,2}; WRF_Buoy_Temp = WRF{:,5}; WRF_Buoy_Pressure = WRF{:,4};
+
+
+
+%*******************************************
+%Filtering the datas for wg, buoy (CHANGE DATA
+%HERE)
+wgsm_ =(wgwspd); bsm_ =(Buoywspd); WRF_WG =(WRF_WG_Temp); WRF_Buoy = (WRF_Buoy_Temp);
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%Filter the 9999 and 999 to NaN
+bsm_(bsm_ == 9999 | bsm_ == 999) = NaN;
+wgsm_(wgsm_ == 999 | wgsm_ == 9999) = NaN;
+
+Variable = 'Wind Speed ';
+Period = ' (Storm Case 1)';
+unit = ' (m/s) ';
+% (\circC)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Averaging all data from mins to hourly (USING THE EXTERNAL FUNCTIONS
+%CREATED
+Wgsm_ = tenmins_to_hourly(wgsm_);
+bsm_ = tenmins_to_hourly(bsm_);
+
+% 6:30; CALM CASE 1
+% 122:146; STORM CASE 1
+% 206:230; CALM CASE 2
+% 254:278; STORM CASE 2
+%CHANGE FOR STATION KEEPING OR RACETRACK
+range =5:29;
+
+% PressDiff = Wgsm_ - bsm_;
+% mmb=find(PressDiff > 3 | PressDiff < -3 );
+% %X axis 1:193 (racetrack 193:312
+% % % WG = Wgsm_(range, :);
+% Wgsm_(mmb) = NaN;
+
+WG = Wgsm_(range, :);
+Buoy44009 = bsm_(range, :);
+Dateti = WAVEGLIDER{:,1};
+% % % % % % % % % % Datetimm = Dateti(1:6:length(Dateti));
+% % % % % % % % % % Datetim = (Datetimm(range, :));
+% % % % % % % % % % WG_DIFF = wgsm_(range, :) - WRF_WG;
+% % % % % % % % % % Buoy44009_DIFF = bsm_(range, :) - WRF_Buoy;
+%HOURLY DATA
+% Storm 1
+% % Date: (Nov 20, 07:00 UTC - Nov 21 16:00 UTC) 245:311 (WH is 221:287)
+% Storm 2 (SK)
+% % Date: (Nov 25, 05:00 UTC - Nov 26, 05:00 UTC) 236:266 
+
+% Calm 1
+% % Date: (Nov 15, 12:00 UTC - Nov 16 08:00 UTC) 15:55
+% Calm 2 (SK)
+% % Date: (Nov 23, 23:00 UTC - Nov 25 15:00 UTC) 206:236 
+
+%PERIODS
+%  1:361:584; waveheight
+% 25:385:608; TP&Wind
+
+
+
+
+
+%PLOTTING THE TIME SERIES
+figure
+plot(Datetim(range, :),Wgsm_(range, :),'-',Color='k',LineWidth=1.2);
+hold on
+plot(Datetim(range, :),WRF_WG,'--',Color='k');
+hold on
+plot(Datetim(range, :),bsm_(range, :),'-', color = 'blue',LineWidth=1.2);
+hold on
+plot(Datetim(range, :),WRF_Buoy,'--', color = 'blue');
+hold off
+
+grid on;
+% yline(11,'--',{'Beaufort 6'},Linewidth=1.5);
+
+% CHANGE TITLE AND LEBEL WHEN DATA CHANGES
+title(append(Variable, Period))
+xlabel('DateTime (UTC)');
+% ylabel('Temperature (\circC)');
+% ylabel('Wind Speed (m/s)');
+ylabel(append(Variable,unit));
+legend('Waveglider','Model__WG','Buoy 44009','Model__Buoy',location='best')
+
+saveas(gcf, append(Variable,' ', ' Model ',Period,'.png'));
+
+figure
+plot(Datetim,WG_DIFF,'-',Color='k',LineWidth=1.2);
+hold on
+plot(Datetim,Buoy44009_DIFF,'-',Color='blue');
+hold off
+
+
+
+
+
+
+
+
+%*******************************************************
+% MATLAB Script to Plot Time Series Data from Excel File and Workspace
+% Prompt user to select the Excel file
+[file, path] = uigetfile('*.xlsx', 'Select the Excel file with extracted data');
+if isequal(file, 0)
+    disp('User selected Cancel');
+    return;
+else
+    excelFile = fullfile(path, file);
+end
+
+% Read the sheet names (IDs) from the Excel file
+[~, sheetNames] = xlsfinfo(excelFile);
+
+% Prompt user to input the variable they want to plot
+variable = input('Enter the variable you want to plot (e.g., ''Wind Speed (m/s)''): ', 's');
+
+% Display available IDs (sheet names)
+disp('Available IDs:');
+disp(sheetNames');
+
+% Prompt user to input the IDs they want to include in the plot
+idInput = input('Enter the IDs you want to include in the plot (e.g., {''R1'', ''R3'', ''R4''}): ');
+
+% Convert the input string to cell array if not already
+if ischar(idInput)
+    selectedIDs = strsplit(idInput, ',');
+else
+    selectedIDs = idInput;
+end
+
+% Prompt user to input the plot title
+plotTitle = input('Enter the plot title: ', 's');
+
+% Prompt user to input the y-axis label
+yLabel = input('Enter the y-axis label: ', 's');
+
+% Define a set of colors from a colormap and exclude cyan (cyan is [0 1 1] in RGB)
+colors = lines(length(selectedIDs) + 1); % Generate a set of colors
+colors(all(colors == [0 1 1], 2), :) = []; % Remove cyan if it is in the set
+
+% Initialize figure
+figure;
+hold on;
+
+% Initialize a table to store data for mean calculation
+allData = [];
+minTime = datetime('9999-12-31'); % Initialize minTime to a far future date
+maxTime = datetime('0000-01-01'); % Initialize maxTime to a far past date
+
+% Plot the data for each selected ID with different colors
+for j = 1:length(selectedIDs)
+    sheetName = strtrim(selectedIDs{j});  % Remove any leading/trailing whitespace
+    if ismember(sheetName, sheetNames)
+        data = readtable(excelFile, 'Sheet', sheetName);
+        
+        % Convert time to datetime format if not already
+        if iscell(data.Time)
+            data.Time = datetime(data.Time, 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
+        end
+        
+        % Append the data to the allData table
+        if ismember(variable, data.Properties.VariableNames)
+            if isempty(allData)
+                allData = data(:, {'Time', variable});
+            else
+                allData = outerjoin(allData, data(:, {'Time', variable}), 'Keys', 'Time', 'MergeKeys', true);
+            end
+            % Update minTime and maxTime
+            minTime = min(minTime, min(data.Time));
+            maxTime = max(maxTime, max(data.Time));
+            
+            % Plot the specified variable with a different color
+            plot(data.Time, data.(variable), 'Color', colors(j, :), 'LineStyle', '--', 'LineWidth', 1, 'DisplayName', ['Model-', sheetName]);
+        else
+            disp(['Variable ' variable ' not found in sheet ' sheetName]);
+        end
+    else
+        disp(['Sheet ' sheetName ' not found in the Excel file']);
+    end
+end
+
+% Calculate and plot the mean of the specified variable across the selected IDs within the common time range
+if ~isempty(allData)
+    % Restrict allData to the common time range
+    commonTimeRange = allData.Time >= minTime & allData.Time <= maxTime;
+    allDataRestricted = allData(commonTimeRange, :);
+    
+    % Calculate mean
+    allDataRestricted.Mean = mean(allDataRestricted{:, 2:end}, 2, 'omitnan');
+    
+    % Plot mean
+    plot(allDataRestricted.Time, allDataRestricted.Mean, 'Color', [0.5 0.5 0.5], 'LineStyle', '-', 'LineWidth', 1, 'DisplayName', 'Model-WG-mean');
+end
+
+% Plot the data for sheet R39 with cyan color
+if ismember('R39', sheetNames)
+    dataR39 = readtable(excelFile, 'Sheet', 'R39');
+    if iscell(dataR39.Time)
+        dataR39.Time = datetime(dataR39.Time, 'InputFormat', 'yyyy-MM-dd HH:mm:ss');
+    end
+    if ismember(variable, dataR39.Properties.VariableNames)
+        plot(dataR39.Time, dataR39.(variable), 'Color', [0 1 1], 'LineStyle', '--', 'LineWidth', 1, 'DisplayName', 'Model-Buoy44009');
+    else
+        disp(['Variable ' variable ' not found in sheet R39']);
+    end
+else
+    disp('Sheet R39 not found in the Excel file');
+end
+
+% Assuming WG and Buoy44009 are already in the workspace and have the same time vector
+try
+    plot(data.Time, WG, 'Color', 'k', 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', 'WG');
+catch
+    disp('WG not found in the workspace');
+end
+
+try
+    plot(data.Time, Buoy44009, 'Color', 'b', 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', 'Buoy44009');
+catch
+    disp('Buoy44009 not found in the workspace');
+end
+
+% Customize plot
+xlabel('Time');
+ylabel(yLabel);
+title(plotTitle);
+legend('Location', 'best');
+grid on;
+hold off;
+
+% Save the figure as an image file based on the plot title
+saveas(gcf, [plotTitle, '.png']);
+
+
+
+
+
+%*******************************************************
+BUOY_44009 = readtable('buoy 44009 Nov all 2022.csv', VariableNamingRule='preserve');
+WAVEGLIDER = readtable('WG Lewes.csv', VariableNamingRule='preserve');
+WRF_grid = readtable('extracted_data_CALM_CASE_2 (NEAREST).csv', VariableNamingRule='preserve');
+WRF_3x3 = readtable('extracted_data_CALM_CASE_2(3x3 grid).csv', VariableNamingRule='preserve');
+
+
+% %DECARING THE VARIABLES COLUMNS FOR EACH STATION
+%WaveGlider data
+wgwspd = WAVEGLIDER{:,7}; WG_Temp = WAVEGLIDER{:,5}; wgpres = WAVEGLIDER{:,6}; 
+wgwdir = WAVEGLIDER{:,9}; wgwgust = WAVEGLIDER{:,13};
+
+%Buoy Data
+Buoywspd = BUOY_44009{:,7}; BuoyTemp = BUOY_44009{:,14}; 
+Buoypres = BUOY_44009{:,13}; Buoydir = BUOY_44009{:,6}; 
+Buoygust = BUOY_44009{:,8};
+
+
+%DECARING THE VARIABLES COLUMNS FOR EACH STATION (Neraby Grid
+%WRF MODEL(Hourly)
+WRF_WG_wspd = WRF_grid{:,6}; WRF_WG_Temp = WRF_grid{:,9}; WRF_WG_Pressure = WRF_grid{:,8}; WRF_WG_wdir = WRF_grid{:,7};
+WRF_Buoy_wspd = WRF_grid{:,2}; WRF_Buoy_Temp = WRF_grid{:,5}; WRF_Buoy_Pressure = WRF_grid{:,4}; WRF_Buoy_wdir = WRF_grid{:,3};
+
+%DECARING THE VARIABLES COLUMNS FOR EACH STATION (Neraby Grid
+%WRF MODEL(Hourly)
+WRF_WG_wspd_3x3 = WRF_3x3{:,6}; WRF_WG_Temp_3x3 = WRF_3x3{:,9}; WRF_WG_Pressure_3x3 = WRF_3x3{:,8}; WRF_WG_wdir_3x3 = WRF_3x3{:,7};
+WRF_Buoy_wspd_3x3 = WRF_3x3{:,2}; WRF_Buoy_Temp_3x3 = WRF_3x3{:,5}; WRF_Buoy_Pressure_3x3 = WRF_3x3{:,4}; WRF_Buoy_wdir_3x3 = WRF_3x3{:,3};
+
+%*******************************************
+%Filtering the datas for wg, buoy, capeMay, lewes and Deos (CHANGE DATA
+%HERE)
+WRF_WG_grid =(WRF_WG_Pressure); WRF_Buoy_grid = (WRF_Buoy_Pressure);WRF_WG_3x3 =(WRF_WG_Pressure_3x3); WRF_Buoy_3x3 = (WRF_Buoy_Pressure_3x3);
+wgsm_ =(wgpres); bsm_ =(Buoypres);
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%Filter the 9999 and 999 to NaN
+bsm_(bsm_ == 9999 | bsm_ == 999) = NaN;
+wgsm_(wgsm_ == 999 | wgsm_ == 9999) = NaN;
+
+
+Variable = 'Atmospheric Pressure ';
+Period = ' (Calm Case 2)';
+unit = ' (mbar) ';
+% (\circC)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Averaging all data from mins to hourly (USING THE EXTERNAL FUNCTIONS
+%CREATED
+wgsm_ = tenmins_to_hourly(wgsm_);
+bsm_ = tenmins_to_hourly(bsm_);
+
+% 6:30; CALM CASE 1
+% 122:146; STORM CASE 1
+% 206:230; CALM CASE 2
+% 254:278; STORM CASE 2
+%CHANGE FOR STATION KEEPING OR RACETRACK
+range =206:230;
+%X axis 1:193 (racetrack) 193:312
+% Dateti = WAVEGLIDER{:,1};
+% Datetimm = Dateti(1:6:length(Dateti));
+% Datetim = (Datetimm(range, :));
+% WG_DIFF = wgsm_(range, :) - WRF_WG;
+% Buoy44009_DIFF = bsm_(range, :) - WRF_Buoy;
+%HOURLY DATA
+% Storm 1
+% % Date: (Nov 20, 07:00 UTC - Nov 21 16:00 UTC) 245:311 (WH is 221:287)
+% Storm 2 (SK)
+% % Date: (Nov 25, 05:00 UTC - Nov 26, 05:00 UTC) 236:266 
+
+% Calm 1
+% % Date: (Nov 15, 12:00 UTC - Nov 16 08:00 UTC) 15:55
+% Calm 2 (SK)
+% % Date: (Nov 23, 23:00 UTC - Nov 25 15:00 UTC) 206:236 
+% 
+
+%PERIODS
+%  1:361:584; waveheight
+% 25:385:608; TP&Wind
+% DIFFERENCE CALCULATION
+WG_DIFF_3 = wgsm_(range,:) - WRF_WG_3x3;
+% WG_DIFF_1 = wgsm_(range,:) - WRF_WG_grid;
+Buoy_DIFF_3 = bsm_(range,:) - WRF_Buoy_3x3;
+% Buoy_DIFF_1 = bsm_(range,:) - WRF_Buoy_grid;
+Datetim = WRF_3x3{:,1};
+% 
+
+% UNCOMMENT THIS TO APPLY FILTER
+wgsm_f = wgsm_(range,:);
+
+PressDiff = wgsm_ - bsm_;
+mmb=find(PressDiff(range,:) > 1 | PressDiff(range,:) < -1 );
+% % BAD PRESSURE FILTER
+% WG_DIFF_3(mmb)=NaN;
+% WG_DIFF_1(mmb)=NaN;
+% WG_DIFF_3(mmb) = NaN;
+wgsm_f(mmb) = NaN;
+
+% WG = Wgsm_(range, :);
+% Buoy44009 = bsm_(range, :);
+
+%PLOTTING THE TIME SERIES
+figure
+plot(Datetim,wgsm_f,'-',Color='k',LineWidth=2);
+hold on
+plot(Datetim,WRF_WG_3x3,'--',Color='k',LineWidth=1.2);
+% hold on
+% plot(Datetim,WRF_WG_grid,'--', Color='r');
+hold on
+plot(Datetim,bsm_(range,:),'-',Color='blue',LineWidth=2);
+hold on
+plot(Datetim,WRF_Buoy_3x3,'--', 'Color', [0 1 1],LineWidth=1.2);
+% plot(Datetim,WRF_Buoy_grid,'--', color = 'c');
+hold off
+grid on;
+% yline(11,'--',{'Beaufort 6'},Linewidth=1.5);
+%  'Color', [0.5 0.5 0.5]
+% CHANGE TITLE AND LEBEL WHEN DATA CHANGES
+title(append(Variable, ' Obs & Model Comparison ', Period))
+xlabel('DateTime (UTC)');
+% ylabel('Temperature (\circC)');
+% ylabel('Wind Speed (m/s)');
+ylabel(append(Variable,unit));
+legend('Wave Glider','Model-WG','Buoy 44009','Model-Buoy',location='best')
+saveas(gcf, append(Variable,' ', ' Obs & Model Comparison ',Period,'.jpg'));
+
+figure
+plot(Datetim,WG_DIFF_3,'-',Color='k',LineWidth=2);
+% hold on
+% plot(Datetim,WG_DIFF_1,'--', Color='k', LineWidth=2);
+hold on
+plot(Datetim,Buoy_DIFF_3,'-',Color='blue',LineWidth=1.2,LineWidth=2);
+hold on
+% plot(Datetim,Buoy_DIFF_1,'--',Color='c',LineWidth=2);
+% hold off
+title(append(Variable,' Obs & Model Difference Plot ', Period))
+xlabel('DateTime (UTC)');
+% ylim([-1 1]);
+ylabel(append(Variable,unit));
+legend('(Wave Glider) - (Model-WG)','(Buoy 44009) - (Model-Buoy)',location='best')
+saveas(gcf, append(Variable,' ', 'Obs & Model Difference Plot ',Period,'.jpg'));
+
+
+% Prearson correlation
+Buoy__44009 = bsm_(range,:);
+MODEL_Buoy = WRF_Buoy_3x3;
+Wave__Glider = wgsm_f;
+MODEL_WG = WRF_WG_3x3;
+
+% Combine data into a table
+data = table(Datetim, Buoy__44009,MODEL_Buoy, Wave__Glider, MODEL_WG);
+
+% List of stations
+stations = {'Buoy__44009','MODEL_Buoy', 'Wave__Glider', 'MODEL_WG'};
+numStations = length(stations);
+R_matrix = NaN(numStations, numStations);
+
+% Calculate R for each pair of stations
+for i = 1:numStations
+    for j = 1:numStations
+        if i ~= j
+            X = data.(stations{i});
+            y = data.(stations{j});
+            % Remove NaN values from both X and y
+            validIdx = ~isnan(X) & ~isnan(y);
+            X = X(validIdx);
+            y = y(validIdx);
+            if ~isempty(X) && ~isempty(y)
+                correlation_matrix = corrcoef(X, y); % Correlation matrix
+                R = correlation_matrix(1, 2); % Correlation coefficient
+                R_matrix(i, j) = R;
+            end
+        end
+    end
+end
+
+% Display R matrix
+disp(append(Variable,' R values between stations ',Period));
+disp(array2table(round(R_matrix, 2), 'VariableNames', stations, 'RowNames', stations));
+
+% Visualize the correlation matrix using a heatmap
+figure; % Create a new figure
+hold off; % Ensure hold is off before creating the heatmap
+h = heatmap(stations, stations, round(R_matrix, 2), 'Colormap', parula, 'ColorbarVisible', 'on');
+h.Title = append(Variable, ' R values between stations ', Period);
+h.ColorLimits = [-1 1]; % Adjust limits based on expected range of correlation values
+h.ColorbarVisible = 'on';
+h.GridVisible = 'off';
+
+% Set color intervals of 0.2
+caxis([-1 1]); % Adjust limits based on expected range of correlation values
+colormap(parula(10)); % -1 to 1 with intervals of 0.2 means 10 intervals
+
+% Save the heatmap plot as a PNG file
+saveas(gcf, append(Variable, ' ', ' R values', Period, '.png'));
+
+% Save the correlation matrix as a CSV file
+correlation_table = array2table(R_matrix, 'VariableNames', stations, 'RowNames', stations);
+writetable(correlation_table, append(Variable, ' ', ' R values ', Period, '.csv'), 'WriteRowNames', true);
+
+% Combine data into a table
+data = table(Datetim, Buoy__44009, MODEL_Buoy, Wave__Glider, MODEL_WG);
+
+% List of data variables
+variables = {'Buoy__44009', 'MODEL_Buoy', 'Wave__Glider', 'MODEL_WG'};
+numVars = length(variables);
+
+% Initialize the summary table
+summary_table = table('Size', [numVars, 11], ...
+                      'VariableTypes', repmat({'double'}, 1, 11), ...
+                      'VariableNames', {'Mean', 'Max', 'Stdev', 'RMSE', 'MAE', ...
+                                        'CI_Lower', 'CI_Upper', ...
+                                        'Time_of_Mean', 'Time_of_Max', ...
+                                        'RMSE_Model_Obs', 'MAE_Model_Obs'}, ...
+                      'RowNames', variables);
+
+% Define a function to calculate RMSE
+rmse = @(x, y) sqrt(mean((x - y).^2));
+
+% Define a function to calculate MAE
+mae = @(x, y) mean(abs(x - y));
+
+% Define a function to calculate 95% confidence interval for the mean
+conf_interval = @(x) mean(x) + tinv([0.025 0.975], length(x)-1) * std(x)/sqrt(length(x));
+
+% Calculate summary statistics for each variable
+for i = 1:numVars
+    var = variables{i};
+    data_var = data.(var);
+    
+    % Remove NaN values
+    validIdx = ~isnan(data_var);
+    valid_data = data_var(validIdx);
+    valid_time = data.Datetim(validIdx);
+    
+    % Calculate statistics
+    mean_val = mean(valid_data);
+    max_val = max(valid_data);
+    stdev_val = std(valid_data);
+    ci = conf_interval(valid_data);
+    
+    % Find time of mean and max
+    [~, mean_idx] = min(abs(valid_data - mean_val));
+    [~, max_idx] = max(valid_data);
+    time_of_mean = valid_time(mean_idx);
+    time_of_max = valid_time(max_idx);
+    
+    % Store in the summary table
+    summary_table{var, 'Mean'} = mean_val;
+    summary_table{var, 'Max'} = max_val;
+    summary_table{var, 'Stdev'} = stdev_val;
+    summary_table{var, 'CI_Lower'} = ci(1);
+    summary_table{var, 'CI_Upper'} = ci(2);
+    summary_table{var, 'Time_of_Mean'} = datenum(time_of_mean); % Store as datenum for simplicity
+    summary_table{var, 'Time_of_Max'} = datenum(time_of_max); % Store as datenum for simplicity
+end
+
+% Calculate RMSE and MAE between models and observations
+model_obs_pairs = {
+    'Buoy__44009', 'MODEL_Buoy';
+    'Wave__Glider', 'MODEL_WG'
+};
+
+for i = 1:size(model_obs_pairs, 1)
+    obs = model_obs_pairs{i, 1};
+    model = model_obs_pairs{i, 2};
+    
+    obs_data = data.(obs);
+    model_data = data.(model);
+    
+    % Remove NaN values from both
+    validIdx = ~isnan(obs_data) & ~isnan(model_data);
+    obs_data = obs_data(validIdx);
+    model_data = model_data(validIdx);
+    
+    % Calculate RMSE and MAE
+    rmse_val = rmse(obs_data, model_data);
+    mae_val = mae(obs_data, model_data);
+    
+    % Store in the summary table
+    summary_table{obs, 'RMSE_Model_Obs'} = rmse_val;
+    summary_table{obs, 'MAE_Model_Obs'} = mae_val;
+    
+    summary_table{model, 'RMSE_Model_Obs'} = rmse_val;
+    summary_table{model, 'MAE_Model_Obs'} = mae_val;
+end
+
+% Convert time of mean and max back to datetime for display
+summary_table.Time_of_Mean = datetime(summary_table.Time_of_Mean, 'ConvertFrom', 'datenum');
+summary_table.Time_of_Max = datetime(summary_table.Time_of_Max, 'ConvertFrom', 'datenum');
+
+% Display the summary table
+disp(summary_table);
+
+% Save the summary table as a CSV file
+writetable(summary_table, 'summary_statistics.csv', 'WriteRowNames', true);
+
+
+
